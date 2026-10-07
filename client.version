@@ -1,0 +1,10 @@
+# The client every plugin in this repo is built and checked against.
+#
+# "latest" is the right answer here, unlike in RuneLite's hub where the same file pins a version:
+# every push to the client's dev-logging branch publishes a release, and every player's launcher
+# fetches the newest one before it starts the game. The client players are running IS latest, so
+# building against anything older would check these plugins against a client nobody has.
+#
+# Put an explicit tag here - client-80 - to rebuild the index exactly as it was built then, or to
+# hold the plugins back while a client change settles.
+latest

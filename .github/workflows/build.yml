@@ -1,0 +1,138 @@
+# EVERY PLUGIN IN THIS REPO IS BUILT FROM SOURCE HERE. Nobody commits a jar: a plugin is a
+# manifest in plugins/ naming a repository, a commit and a class, and this workflow clones each
+# one at that commit, compiles it against the client named in client.version, and publishes the
+# jar as a release asset.
+#
+# WHY. Before this, a jar was built on someone's machine and committed. Nothing tied it to the
+# source it came from, nobody reviewing the repo could see what was in it, and a client API change
+# broke every published jar silently - the client gained addPanel, the published xptracker.jar
+# called it, and on an older client that is a NoSuchMethodError that switches the whole plugin
+# off. Now that is a red build here instead of a broken plugin there.
+#
+# index.json is GENERATED. Do not edit it by hand; it is overwritten by this workflow, which is
+# the only thing that writes it.
+name: build
+
+on:
+  push:
+    branches: [main]
+    # This workflow's own last step commits index.json. A push made with GITHUB_TOKEN does not
+    # start another run, so this is belt rather than braces - but it also means a hand-edit of
+    # the generated file does not kick off a build that would only overwrite it.
+    paths-ignore: [index.json]
+  pull_request:
+  workflow_dispatch:
+  # The client publishes a release on every push to dev-logging, and a new client can break a
+  # plugin that compiled against the last one. Daily is enough to find that within a day without
+  # rebuilding on every client push - and a client change that matters can always run this by
+  # hand, or send a repository_dispatch.
+  schedule:
+  - cron: '17 6 * * *'
+  repository_dispatch:
+    types: [client-released]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    # A modern JDK with --release 8, not a JDK 8: the plugins must be Java 8 class files (the
+    # client is), and --release is the flag that gets that right including the API it compiles
+    # against. tools/build.py checks every class it packs, so a slip here is caught either way.
+    - uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: 21
+
+    # The builder's own tests, which are about what it REFUSES - a manifest that lies, a commit
+    # that is a branch, a jar built for the wrong Java. Run before anything is published, because
+    # a builder whose checks have stopped working publishes whatever it is given.
+    - name: Test the builder
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: python3 tools/test_build.py
+
+    # On a pull request nothing is published - the point is only to find out whether every
+    # plugin still builds and still agrees with its manifest.
+    - name: Build and check every plugin
+      if: github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: python3 tools/build.py --check
+
+    - name: Build every plugin
+      if: github.event_name != 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: python3 tools/build.py
+
+    # One release per plugin version, so a url never changes meaning once it exists: the asset at
+    # xptracker-1.1 is the 1.1 jar for good. A version that is already released is left alone -
+    # re-uploading would change the jar behind a checksum players have already seen.
+    - name: Publish the jars
+      if: github.event_name != 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        while IFS=$'\t' read -r id version jar; do
+          tag="$id-$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag is already released, leaving it alone"
+          else
+            gh release create "$tag" "$jar" \
+              --title "$id $version" \
+              --notes "Built from the commit pinned in plugins/$id.properties." \
+              --latest=false
+          fi
+        done < out/built.tsv
+
+    # The index is committed only once every url in it actually serves the jar. Without this a
+    # publish that half failed would still flip every client over to an index pointing at assets
+    # that are not there, and the hub would show plugins that cannot be installed. Checked by
+    # fetching, not by assuming the release call worked.
+    - name: Check every url in the index serves its jar
+      if: github.event_name != 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        while IFS=$'\t' read -r id version jar; do
+          url="https://github.com/${{ github.repository }}/releases/download/$id-$version/$id.jar"
+          want=$(sha256sum "$jar" | cut -d' ' -f1)
+          got=$(curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "$url" | sha256sum | cut -d' ' -f1)
+          if [ "$want" != "$got" ]; then
+            echo "$url does not serve the jar this build made"
+            echo "  built    $want"
+            echo "  returned $got"
+            exit 1
+          fi
+          echo "$id-$version serves the jar this build made"
+        done < out/built.tsv
+
+    # index.json is what every client reads, so it is committed to main rather than attached to a
+    # release: the client's default index url is this file on this branch.
+    - name: Commit the index
+      if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+      run: |
+        set -euo pipefail
+        cp out/index.json index.json
+        if git diff --quiet -- index.json; then
+          echo "index.json is unchanged"
+          exit 0
+        fi
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git add index.json
+        git commit -m "Rebuild index.json
+
+        Built by .github/workflows/build.yml from the manifests in plugins/."
+        git push

@@ -1,0 +1,4 @@
+# Build output. Every jar and the index are generated - see tools/build.py.
+out/
+__pycache__/
+*.pyc
