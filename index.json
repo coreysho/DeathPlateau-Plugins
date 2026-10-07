@@ -7,7 +7,7 @@
       "author": "Corey",
       "version": "1.0",
       "url": "https://github.com/coreysho/DeathPlateau-Plugins/releases/download/coordinates-1.0/coordinates.jar",
-      "sha256": "fff31ca0294df5a1575d2c8b30cba7f2057e133074581e61608319881fe7eb9e"
+      "sha256": "7ec373a552caf7e96666ee18cd1892b7a66fa1d78e81baf4b0837af28e04f5eb"
     },
     {
       "id": "xptracker",
@@ -16,7 +16,7 @@
       "author": "Corey",
       "version": "1.1",
       "url": "https://github.com/coreysho/DeathPlateau-Plugins/releases/download/xptracker-1.1/xptracker.jar",
-      "sha256": "c27e7ae9cd55a4cda3fad3ad1294a197073bcef7175deea0f895bd4190dcb19b"
+      "sha256": "4fb12e92ed80e4a24f7ad07aa184f9688cf7273dc775d7475fe296ad50becbad"
     }
   ]
 }

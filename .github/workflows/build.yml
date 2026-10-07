@@ -144,7 +144,20 @@ jobs:
         while IFS=$'\t' read -r id version jar; do
           url="https://github.com/${{ github.repository }}/releases/download/$id-$version/$id.jar"
           want=$(sha256sum "$jar" | cut -d' ' -f1)
-          got=$(curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "$url" | sha256sum | cut -d' ' -f1)
+          # RETRIED ON A MISMATCH, not just on a failed request. A release asset that was just
+          # uploaded is served from a cache that takes a moment to catch up, so the first fetch
+          # after a publish can return the bytes that were there before - which failed this step
+          # once for no better reason than being quick. curl's own --retry does not help: the
+          # request succeeds, it is the content that is behind.
+          got=""
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            got=$(curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "$url" | sha256sum | cut -d' ' -f1)
+            if [ "$want" = "$got" ]; then
+              break
+            fi
+            echo "$id-$version does not match yet (attempt $attempt), waiting"
+            sleep 6
+          done
           if [ "$want" != "$got" ]; then
             echo "$url does not serve the jar this build made"
             echo "  built    $want"
