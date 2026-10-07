@@ -1,0 +1,22 @@
+{
+  "plugins": [
+    {
+      "id": "coordinates",
+      "name": "Coordinates",
+      "description": "Shows your world position in the corner of the viewport",
+      "author": "Corey",
+      "version": "1.0",
+      "url": "https://raw.githubusercontent.com/coreysho/DeathPlateau-Plugins/main/jars/coordinates.jar",
+      "sha256": "ae3d73aa4a98bcbd08caadb979d806d4c73ac79b74fab9bae6719a57f8f36445"
+    },
+    {
+      "id": "xptracker",
+      "name": "XP tracker",
+      "description": "Session experience and xp/hr. F7 resets it.",
+      "author": "Corey",
+      "version": "1.0",
+      "url": "https://raw.githubusercontent.com/coreysho/DeathPlateau-Plugins/main/jars/xptracker.jar",
+      "sha256": "59fe1be2d732b8dc4f67ce5a5580ac1fff46ee6e7d5d98d580a1fae3ed8af2e1"
+    }
+  ]
+}
