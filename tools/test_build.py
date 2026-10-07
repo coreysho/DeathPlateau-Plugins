@@ -11,6 +11,7 @@ so what is being tested is the script as it ships. The client jar is downloaded 
 
     python3 tools/test_build.py [filter]
 """
+import hashlib
 import os
 import re
 import shutil
@@ -130,6 +131,30 @@ def main():
               + 'every class in every jar is Java 8 (class version %d)' % worst)
         if worst != 52:
             fails += 1
+
+        # Built twice from the same commit, byte for byte the same both times. Without this the
+        # checksum in the index changes on every run and says nothing about what is in the jar -
+        # and a re-run of an unchanged plugin looks like a new artifact, which is what broke the
+        # first build after this repo went source-only.
+        before = {}
+        for name in sorted(os.listdir(os.path.join(ROOT, 'out', 'jars'))):
+            with open(os.path.join(ROOT, 'out', 'jars', name), 'rb') as f:
+                before[name] = hashlib.sha256(f.read()).hexdigest()
+        r = run(sys.executable, os.path.join(HERE, 'build.py'), cwd=ROOT)
+        after = {}
+        if r.returncode == 0:
+            for name in sorted(os.listdir(os.path.join(ROOT, 'out', 'jars'))):
+                with open(os.path.join(ROOT, 'out', 'jars', name), 'rb') as f:
+                    after[name] = hashlib.sha256(f.read()).hexdigest()
+        ok = r.returncode == 0 and before and before == after
+        print(('  ok   ' if ok else 'FAIL   ')
+              + 'the same commit builds byte-for-byte identical jars, twice running')
+        if not ok:
+            fails += 1
+            for name in sorted(before):
+                if before.get(name) != after.get(name):
+                    print('       %s: %s then %s' % (name, before[name][:16],
+                                                     (after.get(name) or 'missing')[:16]))
 
         client_jar = os.path.join(ROOT, 'out', 'client.jar')
 

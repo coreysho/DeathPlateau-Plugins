@@ -22,6 +22,13 @@ on:
     paths-ignore: [index.json]
   pull_request:
   workflow_dispatch:
+    inputs:
+      repackage:
+        description: >
+          Replace the jar of an already-released version. Only for a REPACKAGING - the same
+          code in a different archive. A code change needs a new version instead.
+        type: boolean
+        default: false
   # The client publishes a release on every push to dev-logging, and a new client can break a
   # plugin that compiled against the last one. Daily is enough to find that within a day without
   # rebuilding on every client push - and a client change that matters can always run this by
@@ -75,23 +82,52 @@ jobs:
       run: python3 tools/build.py
 
     # One release per plugin version, so a url never changes meaning once it exists: the asset at
-    # xptracker-1.1 is the 1.1 jar for good. A version that is already released is left alone -
-    # re-uploading would change the jar behind a checksum players have already seen.
+    # xptracker-1.1 is the 1.1 jar for good.
+    #
+    # A version that is already released is therefore left alone - but only after checking that
+    # what it serves is what this build made. The build is reproducible (see ZIP_EPOCH in
+    # tools/build.py), so "the same commit" and "the same bytes" are the same statement, and a
+    # difference means something real changed under a version that promised not to.
+    #
+    # That is a failure, not something to paper over: re-uploading would change the jar behind a
+    # checksum players have already seen. The remedy is a new version. The one exception is a
+    # REPACKAGING - identical code in a different archive, which is what making the build
+    # reproducible did to the two jars published before it - and that needs someone to say so by
+    # running this workflow with repackage set.
     - name: Publish the jars
       if: github.event_name != 'pull_request'
       env:
         GH_TOKEN: ${{ github.token }}
+        REPACKAGE: ${{ inputs.repackage }}
       run: |
         set -euo pipefail
         while IFS=$'\t' read -r id version jar; do
           tag="$id-$version"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "$tag is already released, leaving it alone"
-          else
+          if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" "$jar" \
               --title "$id $version" \
               --notes "Built from the commit pinned in plugins/$id.properties." \
               --latest=false
+            echo "published $tag"
+            continue
+          fi
+          url="https://github.com/${{ github.repository }}/releases/download/$tag/$id.jar"
+          want=$(sha256sum "$jar" | cut -d' ' -f1)
+          got=$(curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "$url" | sha256sum | cut -d' ' -f1)
+          if [ "$want" = "$got" ]; then
+            echo "$tag is already released with exactly this jar, leaving it alone"
+          elif [ "$REPACKAGE" = "true" ]; then
+            echo "$tag differs and repackage was asked for: replacing its jar"
+            gh release upload "$tag" "$jar" --clobber
+          else
+            echo "$tag is released, but this build produces a different jar."
+            echo "  released $got"
+            echo "  built    $want"
+            echo
+            echo "A released version is immutable. If the code changed, give it a new version in"
+            echo "plugins/$id.properties. If only the packaging changed, re-run this workflow with"
+            echo "repackage set."
+            exit 1
           fi
         done < out/built.tsv
 

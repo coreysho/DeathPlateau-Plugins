@@ -53,6 +53,17 @@ REQUIRED = ('name', 'version', 'repository', 'commit', 'sourceDir', 'pluginClass
 CLASS_TARGET = '8'
 CLASS_VERSION = 52  # Java 8. Anything above this will not load in the client.
 
+# Every entry in every jar is stamped with this instead of the time it was built, and the entries
+# are written in sorted order. Without both, two builds of the SAME commit produce two different
+# files - different timestamps, and os.walk does not promise an order - so the checksum in the
+# index changes every run and says nothing about what is in the jar.
+#
+# This is the whole point of building from source: anyone can rebuild a published plugin from the
+# commit the manifest names and get the same bytes, so the checksum is a claim they can check. It
+# also means a re-run is a no-op rather than a new artifact for an unchanged plugin. 1980-01-01 is
+# the earliest a zip can represent.
+ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
+
 
 class Fail(Exception):
     """A problem with a plugin or with this repo, said in one sentence."""
@@ -220,26 +231,42 @@ def pack(classes, plugin_class, target):
     Only this plugin's classes: the source directory may hold several plugins - the client repo's
     does - and a jar carrying another plugin's code would install the same class twice under two
     ids.
+
+    Written byte-for-byte reproducibly - see ZIP_EPOCH.
     """
     prefix = plugin_class.replace('.', '/')
-    with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as z:
-        z.writestr('META-INF/MANIFEST.MF',
-                   'Manifest-Version: 1.0\nPlugin-Class: %s\n\n' % plugin_class)
-        packed = 0
-        for root, _dirs, files in os.walk(classes):
-            for name in files:
-                if not name.endswith('.class'):
-                    continue
-                full = os.path.join(root, name)
-                entry = os.path.relpath(full, classes).replace(os.sep, '/')
-                # "pkg/Thing.class" and "pkg/Thing$1.class", not "pkg/ThingElse.class".
-                stem = entry[:-len('.class')]
-                if stem == prefix or stem.startswith(prefix + '$'):
-                    z.write(full, entry)
-                    packed += 1
-    if packed == 0:
+    wanted = []
+    for root, _dirs, files in os.walk(classes):
+        for name in files:
+            if not name.endswith('.class'):
+                continue
+            full = os.path.join(root, name)
+            entry = os.path.relpath(full, classes).replace(os.sep, '/')
+            # "pkg/Thing.class" and "pkg/Thing$1.class", not "pkg/ThingElse.class".
+            stem = entry[:-len('.class')]
+            if stem == prefix or stem.startswith(prefix + '$'):
+                wanted.append((entry, full))
+    if not wanted:
         raise Fail('nothing to pack for %s' % plugin_class)
-    return packed
+
+    with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as z:
+        add(z, 'META-INF/MANIFEST.MF',
+            ('Manifest-Version: 1.0\nPlugin-Class: %s\n\n' % plugin_class).encode('utf-8'))
+        # Sorted, so the order does not depend on how the filesystem answered os.walk.
+        for entry, full in sorted(wanted):
+            with open(full, 'rb') as f:
+                add(z, entry, f.read())
+    return len(wanted)
+
+
+def add(z, name, data):
+    """One zip entry, with a fixed timestamp and a fixed mode. See ZIP_EPOCH."""
+    info = zipfile.ZipInfo(name, date_time=ZIP_EPOCH)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    # 0644, as a regular file. Left to default it carries whatever the build machine's umask was.
+    info.external_attr = 0o644 << 16
+    info.create_system = 3  # Unix, so the mode above means something
+    z.writestr(info, data)
 
 
 def describe(java_bin, client_jar, tools_classes, jar, plugin_class):

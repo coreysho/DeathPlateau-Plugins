@@ -75,6 +75,17 @@ day. For each manifest it:
 6. publishes the jar as a release asset, confirms the url serves exactly that jar, and commits
    the regenerated `index.json`
 
+**The jars are reproducible.** Every zip entry is stamped 1980-01-01 and written in sorted order,
+so building the same commit twice gives the same bytes. That is what makes the checksum in the
+index a claim anyone can check: clone the commit the manifest names, run `tools/build.py`, compare.
+It also means a re-run of an unchanged plugin is a no-op rather than a new artifact.
+
+**A released version is immutable.** If a version is already published, the build compares what it
+produces to what that release serves, and a difference fails: the remedy is a new version in the
+manifest, not a replaced jar, because players have already seen the old checksum. The one exception
+is a repackaging - identical code in a different archive - which needs someone to run the workflow
+by hand with `repackage` set.
+
 **`index.json` is generated.** Editing it by hand is pointless; the workflow overwrites it.
 
 `jars/` holds the hand-built jars from before this, and the committed `index.json` still points at
