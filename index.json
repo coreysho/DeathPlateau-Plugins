@@ -12,11 +12,11 @@
     {
       "id": "xptracker",
       "name": "XP tracker",
-      "description": "Session experience and xp/hr. F7 resets it.",
+      "description": "Session experience and xp/hr, with a page of its own on the sidebar. F7 resets it.",
       "author": "Corey",
-      "version": "1.0",
+      "version": "1.1",
       "url": "https://raw.githubusercontent.com/coreysho/DeathPlateau-Plugins/main/jars/xptracker.jar",
-      "sha256": "59fe1be2d732b8dc4f67ce5a5580ac1fff46ee6e7d5d98d580a1fae3ed8af2e1"
+      "sha256": "a69312d943771b21d15fa62f07558149d6ffa41d1adafd4cc6d412e48ec81928"
     }
   ]
 }

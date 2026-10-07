@@ -44,6 +44,30 @@ plugin is this plugin. Renaming one makes every install of it an orphan.
 **Updating** is a new jar, a new `version`, and a new `sha256`. The version is compared as text,
 not ordered - any different string offers an update.
 
+### Using something the client might not have yet
+
+A jar in this index is installed by whatever client the player happens to be running, which is
+not always the newest one. If your plugin calls an API that arrived after their client was built,
+the call does not resolve and throws `NoSuchMethodError` - and the manager's answer to a plugin
+that throws while starting is to **switch the whole plugin off**. The player loses everything
+your plugin does, over one feature they could not have seen anyway.
+
+So guard anything recent, and catch `Throwable` rather than `Exception`: a missing method is an
+`Error`, and the narrower catch will not see it.
+
+```java
+protected void startUp() {
+    this.addOverlay(this.overlay);       // as old as the API itself
+    try {
+        this.addPanel("Session xp", "chart", rows);   // newer; may not be there
+    } catch (Throwable olderClient) {
+        // No rail pages in this client. Everything above still works.
+    }
+}
+```
+
+`jars/xptracker.jar` does exactly this, and is worth copying from.
+
 ## A note on what installing means
 
 A plugin is ordinary Java running inside the client's process, with the access the client has.
