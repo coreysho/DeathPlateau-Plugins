@@ -6,8 +6,8 @@
       "description": "Shows your world position in the corner of the viewport",
       "author": "Corey",
       "version": "1.0",
-      "url": "https://raw.githubusercontent.com/coreysho/DeathPlateau-Plugins/main/jars/coordinates.jar",
-      "sha256": "ae3d73aa4a98bcbd08caadb979d806d4c73ac79b74fab9bae6719a57f8f36445"
+      "url": "https://github.com/coreysho/DeathPlateau-Plugins/releases/download/coordinates-1.0/coordinates.jar",
+      "sha256": "fff31ca0294df5a1575d2c8b30cba7f2057e133074581e61608319881fe7eb9e"
     },
     {
       "id": "xptracker",
@@ -15,8 +15,8 @@
       "description": "Session experience and xp/hr, with a page of its own on the sidebar. F7 resets it.",
       "author": "Corey",
       "version": "1.1",
-      "url": "https://raw.githubusercontent.com/coreysho/DeathPlateau-Plugins/main/jars/xptracker.jar",
-      "sha256": "a69312d943771b21d15fa62f07558149d6ffa41d1adafd4cc6d412e48ec81928"
+      "url": "https://github.com/coreysho/DeathPlateau-Plugins/releases/download/xptracker-1.1/xptracker.jar",
+      "sha256": "c27e7ae9cd55a4cda3fad3ad1294a197073bcef7175deea0f895bd4190dcb19b"
     }
   ]
 }
